@@ -5,14 +5,9 @@ output:
   html_document:
     df_print: paged
 ---
+#Coursera Capstone Course
+#Week 9: Comparing DE analysis to H3K4me3 modification of promoters
 
-#Week 9 Assignment: Comparing DE analysis to H3K4me3 modification of promoters
-
-Here, the genes that were found to be significantly DE between three Fetal and three Adult samples are compared to genes that have H3K4me3 modification in their promoters, in Adult and Fetal Brain samples.
-
-H3K4me3 is a histone methylation modification that causes an increase in expression of nearby genes
-
-As a control, genes found signifcantly increased in Adult Brain are compared to H3K4me3 modification in Liver samples.
 
 Import libraries
 ```{r}
@@ -24,6 +19,29 @@ suppressPackageStartupMessages(library(TxDb.Hsapiens.UCSC.hg19.knownGene))
 suppressPackageStartupMessages(library(annotate))
 suppressPackageStartupMessages(library(ggplot2))
 ```
+
+#Alignment (STAR) and featureCounts performed in Galaxy - described in detail in CourseraCapstone_FetalAdultBrain_RNASeqAnalysis.Rmd
+
+#Preliminary analysis of counts performed in FeatureCounts_Analysis_Week6Assignment.Rmd and ExploratoryAnalysis_Week7.Rmd
+
+Six samples in total analyzed here (SRA Project ID: PRJNA245228):
+        - 3 from Adult brain tissue:
+                SRS686967
+                SRS686962
+                SRS686964
+        - 3 from Fetal brain tissue
+                SRS686965
+                SRS686966
+                SRS686969 
+
+#Differential expression analysis performed in DifferentialExpression_Week8.Rmd
+
+Here, the genes that were found to be significantly DE between three Fetal and three Adult samples are compared to genes that have H3K4me3 modification in their promoters, in Adult and Fetal Brain samples.
+
+H3K4me3 is a histone methylation modification that causes an increase in expression of nearby genes
+
+As a control, genes found signifcantly increased in Adult Brain are compared to H3K4me3 modification in Liver samples.
+
 
 #Search annotation hub for H3K4me3 datasets
 ```{r}
@@ -136,6 +154,7 @@ head(AdultPromoter_AdultDEG)
 ```
 The above shows the top DE genes that are increased in Adult brain compared to fetal that were found to have their promoter near H3K4me3 methylation in Adult brain but not in Fetal brain samples.
 
+
 ```{r}
 #Number of genes that had H3K4me3 modification in their promoters in Fetal brain samples that were also found to be significantly increased in differential expression analysis:
 FetalPromoter_FetalDEG<- Fetal_IncreasedDEG[Fetal_IncreasedDEG$X %in% OnlyFetal,]
@@ -176,3 +195,8 @@ This suggests that the DEGs found with their promoter modified in Brain tissue w
 
 #Summary
 Overall, as we might expect, a large proportion (~22%) of DEGs with their promoters near an H3k4me3 site in Fetal and Adult brain samples were also found to be significantly increased in Fetal and Adult samples, respectively. Surprisingly, there were several DEGs that were found with their promoters near an H3k4me3 site in Adult Liver samples. However, a smaller proportion (9%) of promoters in Liver samples were found significantly increased in Adult Brain. These DEGs also had overall lower counts than the DEGs found near H3k4me3 sites in Brain samples. 
+
+```{r}
+sessionInfo()
+```
+

@@ -112,4 +112,7 @@ p<- ggplot(df, aes(x=Geneid, y=value, fill= variable))+
 
 
 
+```{r}
+sessionInfo()
+```
 

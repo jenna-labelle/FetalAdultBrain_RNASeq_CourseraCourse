@@ -118,3 +118,8 @@ p
 ```
 
 A large number of genes are differentially expressed at padj<0.05 (12,999). However, this may be expected- Adult and Fetal tissue would likely have very different expression profiles. From the tight clustering observed in the PCA plot, it also makes sense that there would be a large number of genes significantly differentially expressed between the two age groups.
+
+```{r}
+sessionInfo()
+```
+

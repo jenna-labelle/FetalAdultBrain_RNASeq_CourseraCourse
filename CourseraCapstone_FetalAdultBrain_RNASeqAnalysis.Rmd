@@ -1,0 +1,222 @@
+---
+title: 'Genomic Data Science Capstone project: Analysis of Fetal and Adult Brain RNASeq
+  data'
+output:
+  word_document: default
+  html_notebook: default
+---
+
+#Coursera Capstone Project: Analysis of 3 Fetal and 3 Adult RNASeq samples
+
+This analysis is split into 6 main parts:
+
+1) Import of raw fastq data into Galaxy from SRA
+2) Alignment of fastq files in Galaxy using STAR
+3) Count matrix generation using featureCounts in Galaxy
+4) Exploratory analysis of counts
+5) Differential expression between Fetal and Adult Brain
+6) Comparison of DEGs to H3K4me3 methylation near promoters
+
+The first 3 steps were performed using Galaxy. These steps will be described here, including tools, versions, and settings used. 
+
+The following 3 steps were performed in R. The code used for performing this analysis is included in this document. 
+
+Libraries
+```{r}
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(reshape2))
+suppressPackageStartupMessages(library(DESeq2))
+suppressPackageStartupMessages(library(pheatmap))
+suppressPackageStartupMessages(library(ggrepel))
+suppressPackageStartupMessages(library(org.Hs.eg.db))
+suppressPackageStartupMessages(library(annotate))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(rtracklayer))
+suppressPackageStartupMessages(library(AnnotationHub))
+suppressPackageStartupMessages(library(TxDb.Hsapiens.UCSC.hg19.knownGene))
+```
+
+
+#Step 1: Import of fastqs into Galaxy
+
+#Step 2: Alignment of fastqs in Galaxy using STAR
+
+#Step 3: Count matrix generation using featureCounts in Galaxy
+
+#Step 4: Exploratory analysis
+
+#Read in feature counts data and phenotype data
+```{r}
+readwd<- "C:/Users/Jenna/Documents/CourseraGenomicDataScience/Capstone/"
+pheno<- read.csv(paste(readwd, "PhenotypeData.csv", sep=""), row.names = "Sample")
+
+AllCounts<- lapply(rownames(pheno), function(x) {
+        read.csv(paste(readwd,"RawCounts/", x, "_Counts.txt", sep=""), sep="\t")
+})
+#Rename columns
+counts<-list()
+for (i in 1:length(AllCounts)){
+        df<- AllCounts[[i]]
+        colnames(df)<- c("Geneid", rownames(pheno[i,]))
+        counts[[i]]<- df
+}
+
+#Merge into one counts data set
+Counts_Merged<- counts %>%
+    Reduce(function(dtf1,dtf2) left_join(dtf1,dtf2,by="Geneid"), .)
+rownames(Counts_Merged)<-Counts_Merged$Geneid
+counts<- Counts_Merged[,-1]
+
+#Convert gene IDs to gene names
+counts$GeneName<-unlist(unname(lookUp(rownames(counts), 'org.Hs.eg', 'SYMBOL') ))
+counts<-na.omit(counts)
+rownames(counts)<- counts$GeneName
+counts<-counts[,1:(ncol(counts)-1)]
+```
+
+#Plot PCA
+```{r}
+dds<- DESeqDataSetFromMatrix(counts, colData=pheno, design=~Group) #Create DESeq2 object
+dds_transform<-rlog(dds) #Transform data using rlog
+plotPCA(dds_transform, intgroup="Group") #plot PCA
+```
+
+#Step 4: Differential expression
+```{r}
+dds<-DESeq(dds) #Running DESeq2- comparing Fetal to Adult
+
+#Extract results, order by p value
+res<-results(dds)
+resOrdered<-as.data.frame(results(dds)[order(results(dds)$padj),])
+```
+
+#Plot heatmap of top 50 DE genes
+```{r}
+#Get top genes, normalized counts of those top genes
+
+mat<-assay(dds_transform)[rownames(resOrdered[1:25,]),]-rowMeans(assay(dds_transform)[rownames(resOrdered[1:25,]),])
+mat<-mat-rowMeans(mat)
+
+#plot heatmap
+pheatmap(mat,annotation_col = pheno[,c(5,9)])
+```
+
+#Make a volcano plot of DE genes
+```{r}
+VP<- na.omit(resOrdered[,c(2,5,6)])
+VP$Gene<-as.factor(rownames(VP))
+
+#Add column for color- red if p<0.01 (1), orange if abs(log2FC)>1 (2), green if both (3)
+VP<-resOrdered %>% na.omit %>% mutate(Sig_Pvalue=padj<0.01)  %>% mutate(Sig_FC=as.integer(gsub("TRUE", 2, abs(log2FoldChange) > 1)))
+VP[is.na(VP)] <- 0
+VP<- VP %>% mutate(Color=as.factor(Sig_Pvalue + Sig_FC))  %>% mutate(Color=gsub(0,"Not Sig", Color)) %>% mutate(Color=gsub(1, "padj<0.05", Color)) %>% mutate(Color=gsub(2, "log2FoldChange>1", Color))  %>% mutate(Color=gsub(3, "padj<0.05 AND log2FC>1", Color))
+
+p<-ggplot(VP, aes(x=log2FoldChange, y=-log10(pvalue), color=Color))+
+        geom_point()+
+        scale_color_manual(values=c("black", "red", "orange", "green"))
+
+p     
+```
+
+A large number of genes are differentially expressed at padj<0.05 (12,999). However, this may be expected- Adult and Fetal tissue would likely have very different expression profiles. From the tight clustering observed in the PCA plot, it also makes sense that there would be a large number of genes significantly differentially expressed between the two age group
+
+
+#Step 6: Comparison of DEGs to genes with promoters near H3K4me3 modification
+
+Here, the genes that were found to be significantly DE between three Fetal and three Adult samples are compared to genes that have H3K4me3 modification near their promoters, in Adult and Fetal Brain samples. H3K4me3 is a histone methylation modification that causes an increase in expression of nearby genes. As a control, genes found signifcantly increased in Adult Brain are compared to H3K4me3 modification in Liver samples.
+
+#Search annotation hub for H3K4me3 datasets
+```{r}
+#Use AnnotationHub to get data on homo sapiens.
+ah <- AnnotationHub()
+ah <- subset(ah, species == "Homo sapiens")
+```
+
+Looking at the output of this query, it is difficult to determine which datasets to use. I have chosen to use narrowPeak data and data from "BI" for the sake of consistency between samples.
+
+However, another consideration is the specific area of the brain that was used for ChipSeq. For fetal samples, no area-specific information is given, and I could not find this information stored elsewhere. For adult samples, there are 7 different tissue types to choose from. In order to compare Adult and Fetal directly, it would be helpful to know exactly which regions of the brain were used in Fetal ChipSeq. Without this information, I chose to select all regions of the brain within Adult samples:
+
+```{r}
+#import peak data for adult brain- multiple regions
+AdultBrainFiles<- c("BI.Brain_Angular_Gyrus.H3K4me3.112.narrowPeak.gz","BI.Brain_Anterior_Caudate.H3K4me3.112.narrowPeak.gz","BI.Brain_Cingulate_Gyrus.H3K4me3.112.narrowPeak.gz","BI.Brain_Hippocampus_Middle.H3K4me3.112.narrowPeak.gz", "BI.Brain_Inferior_Temporal_Lobe.H3K4me3.112.narrowPeak.gz","BI.Brain_Mid_Frontal_Lobe.H3K4me3.112.narrowPeak.gz", "BI.Brain_Substantia_Nigra.H3K4me3.112.narrowPeak.gz"  )
+AdultBrain<- lapply(AdultBrainFiles, function(x){subset(ah, title==x)[[1]]})
+#Add all Adult brain granges objects together
+AdultBrain_df<-lapply(AdultBrain, as.data.frame)
+AdultBrain_Merged<-do.call("rbind", AdultBrain_df)
+AdultBrain_gr<- makeGRangesFromDataFrame(AdultBrain_Merged, keep.extra.columns = TRUE)
+#import peak data for fetal brain
+FetalBrain_gr <- subset(ah, title =="BI.Fetal_Brain.H3K4me3.UW_H-22510.narrowPeak.gz")[[1]]
+#import peak data for adult liver
+AdultLiver_gr<-subset(ah, title=="BI.Adult_Liver.H3K4me3.3.narrowPeak.gz")[[1]]
+```
+
+#Import promoter regions from RefSeq. Used to map ChipSeq data to gene IDs
+```{r}
+qhs <- query(ah, "RefSeq")
+promoter <- promoters(qhs[qhs$genome == "hg19" & qhs$title == "RefSeq Genes"][[1]])
+```
+
+#Using promoter regions, identify in which genes peaks fall
+```{r}
+#Get granges object of overlap between promoters and peaks
+AdultBrain_granges_PromoterPeak<-GenomicRanges::intersect(AdultBrain_gr, promoter, ignore.strand = TRUE)
+FetalBrain_granges_PromoterPeak<-intersect(FetalBrain_gr, promoter, ignore.strand = TRUE)
+AdultLiver_granges_PromoterPeak<-intersect(AdultLiver_gr, promoter, ignore.strand = TRUE)
+
+#Look up gene IDs for granges object
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+AdultBrain_Granges_GeneID<-subsetByOverlaps(genes(txdb), AdultBrain_granges_PromoterPeak, ignore.strand = TRUE)
+AdultBrain_Granges_GeneID$gene_id<- unlist(unname(lookUp(AdultBrain_Granges_GeneID$gene_id, 'org.Hs.eg', 'SYMBOL')))
+FetalBrain_Granges_GeneID<-subsetByOverlaps(genes(txdb), FetalBrain_granges_PromoterPeak, ignore.strand = TRUE)
+FetalBrain_Granges_GeneID$gene_id<- unlist(unname(lookUp(FetalBrain_Granges_GeneID$gene_id, 'org.Hs.eg', 'SYMBOL')))
+AdultLiver_Granges_GeneID<-subsetByOverlaps(genes(txdb), AdultLiver_granges_PromoterPeak, ignore.strand = TRUE)
+AdultLiver_Granges_GeneID$gene_id<- unlist(unname(lookUp(AdultLiver_Granges_GeneID$gene_id, 'org.Hs.eg', 'SYMBOL')))
+
+#Which promoters are methylated in ONLY fetal or ONLY adult?
+AdultGenes<- unique(AdultBrain_Granges_GeneID$gene_id) #16,596
+FetalGenes<-unique(FetalBrain_Granges_GeneID$gene_id) #8070
+OnlyAdult<- AdultGenes[!(AdultGenes %in% FetalGenes)] #8,541 unique to Adult
+OnlyFetal<- FetalGenes[!(FetalGenes %in% AdultGenes)] #15 unique to Fetal
+```
+
+Filter DEGs- only looking at DEGs with abs(log2FC)>1 AND padj<0.01:
+```{r}
+DEGs<- resOrdered[abs(resOrdered$log2FoldChange)>1 & resOrdered$padj<0.01,] 
+```
+
+Get DEGs that are increased in Fetal and DEGs increased in Adult samples- i.e., genes that may be affected by H3K4me3 modification
+```{r}
+Fetal_IncreasedDEG<-DEGs[DEGs$log2FoldChange>0,] #6,412 DEGs
+Adult_IncreasedDEG<-DEGs[DEGs$log2FoldChange<0,] #7,239 DEGs
+```
+
+#Are there changes in H3K4me3 between fetal and adult brain over promoters for genes differentially expressed between fetal and adult brain?
+```{r}
+#H3K4me3 modified genes (Adult brain samples) + significantly increased in Adults in differential expression analysis:
+AdultPromoter_AdultDEG<- Adult_IncreasedDEG[rownames(Adult_IncreasedDEG) %in% OnlyAdult,]
+nrow(AdultPromoter_AdultDEG)/length(OnlyAdult) #23% of genes with H3K4me3 modification ONLY in adult brain (not fetal) are DE in Adult samples
+
+#H3K4me3 modified genes (Fetal brain samples) + significantly increased in Fetal in differential expression analysis:
+FetalPromoter_FetalDEG<- Fetal_IncreasedDEG[rownames(Fetal_IncreasedDEG) %in% OnlyFetal,]
+nrow(FetalPromoter_FetalDEG)/length(OnlyFetal) #20% of genes with H3K4me3 modification ONLY in fetal brain (not adult) are DE in Fetal samples
+```
+
+
+#Are promoters of genes differentially expressed between adult and fetal brain marked by H3K4me3 in liver?
+This serves as the control question. We would expect that genes with modified promoters in liver tissue would not have increased expression in Adult Brain samples.
+```{r}
+#Get promoters of genes that were marked by H3K4me3 in Liver only, not in Adult Brain
+OnlyLiver<- unique(AdultLiver_Granges_GeneID$gene_id)[!(unique(AdultLiver_Granges_GeneID$gene_id) %in% AdultGenes)] #1185 genes with modification only in Liver, not in Adult Brain
+
+#Number of genes that had H3K4me3 modification in their promoters in only liver samples that are also signficantly increased in Adult brain
+LiverPromoter_AdultDEG<- Adult_IncreasedDEG[rownames(Adult_IncreasedDEG) %in% OnlyLiver,]
+nrow(LiverPromoter_AdultDEG)/length(OnlyLiver) #9% of genes with H3Kme3 modifcation ONLY in Liver (not in Brain) are DE in Adult Brain samples
+```
+
+Overall: of the 8,451 genes with their promoter near H3K4me3 only in Adult brain tissues, 1,995 (23%) were also significantly increased in Adult brain samples in differential expression. Of the 15 genes with their promoter near H3K4me3 only in Fetal brain, 3 (20%) were also significantly increased in Fetal brain samples during differential expression.
+
+Surprisingly, of the 433 genes with their promoter near H3K4me3 only in Adult Liver tissues, 41 (9%) were also significantly increased in Adult brain samples during differential expression. While this value is considerably lower than in Adult Brain tissues (23%), we might expect for there to be closer to 0 genes found for Adult Liver samples.
+
+ 
+

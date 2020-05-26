@@ -1,0 +1,133 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  word_document: default
+  html_notebook: default
+---
+
+Install Libraries
+```{r}
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(reshape2))
+suppressPackageStartupMessages(library(DESeq2))
+```
+
+
+#Coursera Capstone Course
+#Week 7: Exploratory analysis
+
+#Import the data
+
+Import count matrices for all 6 samples
+```{r}
+readwd<- "C:/Users/Jenna/Documents/CourseraGenomicDataScience/Capstone/"
+counts<- read.table(paste(readwd, "RawCounts/AllCounts.txt", sep=""), sep="\t", header=TRUE, row.names = "Geneid")
+
+pheno<- read.csv(paste(readwd, "PhenotypeData.csv", sep=""), header=TRUE, row.names="SampleID")
+pheno$Group<- c(rep("Fetal", 3), rep("Adult", 3))
+```
+
+#normalize counts by converting to CPM, filter
+```{r}
+cpm<- counts/rep(colSums(counts), each=nrow(counts))*1000000
+
+
+#Filter out genes without at least 1 sample with CPM> 0.2
+#CPM > .2 corresponds to a threshold of about ~15 counts for this sequencing depth
+sum(rowSums(cpm>0.2)>=1)#19,218 genes (out of 25,702) have at least 0.5 CPM in 1 sample
+cpm_thresh<- cpm[rowSums(cpm>0.2)>=1,]
+
+```
+
+#Plot boxplots of data transformed in 5 ways:
+
+1) CPM
+2) Log2
+3) Log10
+4) Variance stabilizing transformation
+5) Rlog
+
+```{r}
+#Function for plotting nice looking bar plots in ggplot2
+PlotBoxplot<- function(counts, ylab){
+        ggplot(melt(counts), aes(x=variable, y= value, color=variable))+
+        geom_boxplot(notch="TRUE")+
+        #theme_classic()+
+        ylab(ylab)+
+        xlab("")+
+        theme(axis.text.x = element_text(size=12, color="black", face="bold",
+                                         angle=30,hjust=1),
+              axis.text.y = element_text(size=12, color="black", face="bold"),
+              legend.position="none",
+              legend.title = element_blank(),
+              axis.title.y= element_text(size=14, color="black", face="bold"))
+}
+
+#Plot all counts on boxplot
+PlotBoxplot(counts, "Counts")
+```
+
+
+
+
+```{r}
+#Plot cpm on boxplot
+PlotBoxplot(cpm_thresh, "CPM")
+```
+```{r}
+#Log2 transform cpm, then boxplot
+cpm_log2<- log2(cpm_thresh +1)
+PlotBoxplot(cpm_log2, "Log2 CPM")
+
+```
+
+```{r}
+#Log10 transform cpm, then boxplot
+cpm_log10<- log10(cpm_thresh + 1)
+PlotBoxplot(cpm_log10, "Log10 CPM")
+```
+
+```{r}
+#variance stabilizing transformation
+vst<- varianceStabilizingTransformation(as.matrix(counts), blind = TRUE, fitType = "parametric")
+PlotBoxplot(as.data.frame(vst), "VST")
+```
+
+
+```{r}
+#rlog transformation
+RLog<- rlog(as.matrix(counts))
+PlotBoxplot(as.data.frame(RLog), "Rlog transformation")
+```
+
+#Plot PCA
+```{r}
+#Reorder pheno data so it matches counts matrix
+pheno<- pheno[order(pheno$Run),]
+
+#Create DESeq2 object
+dds<- DESeqDataSetFromMatrix(counts, colData=pheno, design=~Group)
+
+#Rlog transform
+transform<- rlog(dds)
+
+#plot PCA- based on fetal/adult
+plotPCA(transform, intgroup="Group")
+```
+```{r}
+#plot PCA- based on sex
+plotPCA(transform, intgroup="Sex")
+```
+
+```{r}
+#plot PCA- based on %mapping
+plotPCA(transform, intgroup=c("X.mapping"))
+```
+
+```{r}
+#plot PCA- based on %mapping
+plotPCA(transform, intgroup=c("Q30"))
+```
+
+

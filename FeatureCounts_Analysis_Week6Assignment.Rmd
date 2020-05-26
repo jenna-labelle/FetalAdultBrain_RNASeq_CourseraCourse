@@ -1,0 +1,108 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+#Coursera Capstone Project: Analysis of 3 Fetal and 3 Adult RNASeq samples
+
+#Alignment and featureCounts performed in Galaxy
+
+Libraries
+```{r}
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(reshape2))
+suppressPackageStartupMessages(library(DESeq2))
+```
+
+
+#Read in feature counts data
+```{r}
+readwd<- "C:/Users/Jenna/Documents/CourseraGenomicDataScience/Capstone/RawCounts/"
+
+Samples<- c(34,36:39, 41)
+AllCounts<- lapply(Samples, function(x) {
+        read.csv(paste(readwd, "S", x, "_Counts.txt", sep=""), sep="\t")
+})
+
+#Rename columns
+counts<-list()
+for (i in 1:length(Samples)){
+        df<- AllCounts[[i]]
+        colnames(df)<- c("Geneid", paste(Samples[[i]],"Counts", sep="_"))
+        counts[[i]]<- df
+}
+
+#Merge into one counts data set
+Counts_Merged<- counts %>%
+    Reduce(function(dtf1,dtf2) left_join(dtf1,dtf2,by="Geneid"), .)
+rownames(Counts_Merged)<-Counts_Merged$Geneid
+counts<- Counts_Merged[,-1]
+
+```
+
+```{r}
+write.csv(Counts_Merged, paste(readwd, "AllCounts.csv", sep=""))
+
+write.table(Counts_Merged, paste(readwd, "AllCounts.txt", sep=""), sep="\t")
+```
+
+PCA
+```{r}
+counts<-Classmate[,-1]
+
+meta<-data.frame(Samples=colnames(counts), Group= c(rep("Fetal", 3), rep("Adult", 3)))
+dds<- DESeqDataSetFromMatrix(counts, colData=meta, design=~Group)
+dds_transform<-rlog(dds)
+
+#MyPCA<-plotPCA(dds_transform, intgroup="Group")
+plotPCA(dds_transform, intgroup="Group")
+```
+
+
+```{r}
+Classmate<- read.csv(paste(readwd, "Peer2_counts.txt", sep=""), sep="\t")
+Classmate$Geneid<- rownames(Classmate)
+Counts_Merged<-Classmate
+
+#Plot total counts for every sample with the total number of reads mapped for that sample
+TotalCounts<- data.frame(Sample=colnames(Counts_Merged[,2:7]), TotalCounts=colSums(Counts_Merged[,2:7]),
+                         Group=c(rep("Fetal", 3), rep("Adult", 3)))
+
+df<- melt(TotalCounts)
+p<- ggplot(df, aes(x=Sample, y=value, fill=variable))+
+        geom_bar(position="dodge", stat="identity")+
+        theme_classic()+
+        xlab("")+
+        ylab("Counts")+
+        theme(legend.title= element_blank(),
+              legend.text = element_text(size=12, face="bold"),
+              axis.text.x = element_text(size=12, face="bold", angle=45, hjust=1, color="black"),
+              axis.text.y= element_text(size=12, face="bold", color="black"),
+              axis.title.y = element_text(size=12, face="bold"))
+
+
+
+
+#Get top 10 genes in each sample, plot number of counts for all genes for all samples
+CountsOrdered<- lapply(counts, function(x) {x[order(x[,2], decreasing = TRUE),]})
+Top10GenesAllSamples<- unique(unlist(lapply(CountsOrdered, function(x) {x[1:5,1]})))
+Top10Genes_Counts<- lapply(CountsOrdered, function(x) {x[x$Geneid %in% Top10GenesAllSamples,]})
+
+#Merge into one counts data set
+TopCounts_Merged<- Top10Genes_Counts %>%
+    Reduce(function(dtf1,dtf2) left_join(dtf1,dtf2,by="Geneid"), .)
+
+#plot
+df<- melt(TopCounts_Merged, id="Geneid")
+df$Geneid<- as.factor(df$Geneid)
+p<- ggplot(df, aes(x=Geneid, y=value, fill= variable))+
+        geom_bar(position="dodge", stat="identity")
+
+
+
+```
+
+
+
+

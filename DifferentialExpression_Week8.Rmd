@@ -1,0 +1,104 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+Import libraries
+```{r}
+suppressPackageStartupMessages(library(DESeq2))
+suppressPackageStartupMessages(library(pheatmap))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(ggrepel))
+library(org.Hs.eg.db)
+library(annotate)
+```
+
+
+#Import count matrices for all 6 samples
+```{r}
+readwd<- "C:/Users/Jenna/Documents/CourseraGenomicDataScience/Capstone/"
+counts<- read.table(paste(readwd, "RawCounts/AllCounts.txt", sep=""), sep="\t", header=TRUE, row.names = "Geneid")
+
+pheno<- read.csv(paste(readwd, "PhenotypeData.csv", sep=""), header=TRUE, row.names="SampleID")
+pheno$Group<- c(rep("Fetal", 3), rep("Adult", 3))
+pheno<-pheno[order(pheno$Run),]
+colnames(counts)<-pheno$Run
+```
+
+#Convert gene IDs to gene names
+```{r}
+counts$GeneName<-unlist(unname(lookUp(rownames(counts), 'org.Hs.eg', 'SYMBOL') ))
+counts<-na.omit(counts)
+rownames(counts)<- counts$GeneName
+counts<-counts[,1:(ncol(counts)-1)]
+```
+
+
+#Convert to DESeq2 object, run differential expression using DESeq2
+```{r}
+#Creating DESeq2 object
+dds<-DESeqDataSetFromMatrix(countData=counts, colData=pheno, design=~Group)
+
+#Running DESeq2- comparing Fetal to Adult
+dds<-DESeq(dds)
+
+#Extract results, order by p value
+res<-results(dds)
+resOrdered<-as.data.frame(res[order(res$padj),])
+head(resOrdered)
+```
+
+Number of gene differentially expressed:
+```{r}
+nrow(resOrdered[resOrdered$padj<0.05,]) #12,999
+nrow(resOrdered[resOrdered$padj<0.01,]) #10,910
+```
+
+#Export results
+
+```{r}
+write.csv(resOrdered, paste(readwd, "DESeqResults_041620.csv", sep=""))
+```
+
+#Plot heatmap of top 100 DE genes
+```{r}
+#Normalize
+rld<-rlog(dds)
+
+#Get top genes, normalized counts of those top genes
+topgenes<- rownames(resOrdered[1:50,])
+mat<-assay(rld)[topgenes,]
+mat<-mat-rowMeans(mat)
+
+#plot heatmap
+pheatmap(mat, annotation_col = pheno[,c(1,9)])
+```
+
+#Make a volcano plot of DE genes
+```{r}
+VP<- na.omit(resOrdered[,c(2,5,6)])
+VP$Gene<-as.factor(rownames(VP))
+
+#Add column for color- red if p<0.05 (1), orange if log2FC>/<1 (2), green if both (3)
+VP$Sig_Pvalue<- VP$padj<0.05
+VP$Sig_FC<- abs(VP$log2FoldChange) > 1 
+VP$Sig_FC<- as.integer(gsub("TRUE", 2, VP$Sig_FC))
+VP[is.na(VP)] <- 0
+VP$Color<- as.factor(VP$Sig_Pvalue + VP$Sig_FC)
+
+VP$Color<-gsub(0, "Not Sig", VP$Color)
+VP$Color<-gsub(1, "padj<0.05", VP$Color)
+VP$Color<-gsub(2, "log2FoldChange>1", VP$Color)
+VP$Color<- gsub(3, "padj<0.05 AND log2FC>1", VP$Color)
+
+
+p<-ggplot(VP, aes(x=log2FoldChange, y=-log10(pvalue), color=Color))+
+        geom_point()+
+        scale_color_manual(values=c("black", "red", "orange", "green"))
+
+p        
+```
+
+A large number of genes are differentially expressed at padj<0.05 (12,999). However, this may be expected- Adult and Fetal tissue would likely have very different expression profiles. From the tight clustering observed in the PCA plot, it also makes sense that there would be a large number of genes significantly differentially expressed between the two age groups.

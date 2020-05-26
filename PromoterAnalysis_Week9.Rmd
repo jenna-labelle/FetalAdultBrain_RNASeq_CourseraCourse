@@ -1,0 +1,178 @@
+---
+title: "GeneSet Analysis- Coursera Week 9 Assignment"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+#Week 9 Assignment: Comparing DE analysis to H3K4me3 modification of promoters
+
+Here, the genes that were found to be significantly DE between three Fetal and three Adult samples are compared to genes that have H3K4me3 modification in their promoters, in Adult and Fetal Brain samples.
+
+H3K4me3 is a histone methylation modification that causes an increase in expression of nearby genes
+
+As a control, genes found signifcantly increased in Adult Brain are compared to H3K4me3 modification in Liver samples.
+
+Import libraries
+```{r}
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(rtracklayer))
+suppressPackageStartupMessages(library(AnnotationHub))
+suppressPackageStartupMessages(library(org.Hs.eg.db))
+suppressPackageStartupMessages(library(TxDb.Hsapiens.UCSC.hg19.knownGene))
+suppressPackageStartupMessages(library(annotate))
+suppressPackageStartupMessages(library(ggplot2))
+```
+
+#Search annotation hub for H3K4me3 datasets
+```{r}
+#Use AnnotationHub to get data on homo sapiens.
+ah <- AnnotationHub()
+ah <- subset(ah, species == "Homo sapiens")
+
+
+#Search for H3K4me3 and Brain or Liver + narrow peak
+qhs <- query(ah, "H3K4me3")
+qhs <- query(qhs, "Brain")
+qhs<-query(qhs, "narrowPeak")
+qhs<-query(qhs, "BI")
+```
+
+
+Looking at the output of this query, it is difficult to determine which datasets to use. I have chosen to use narrowPeak data and data from "BI" for the sake of consistency between samples.
+
+However, another consideration is the specific area of the brain that was used for ChipSeq. For fetal samples, no area-specific information is given, and I could not find this information stored elsewhere. For adult samples, there are 7 different tissue types to choose from. In order to compare Adult and Fetal directly, it would be helpful to know exactly which regions of the brain were used in Fetal ChipSeq. Without this information, I chose to select all regions of the brain within Adult samples:
+
+```{r}
+#import peak data for adult brain- multiple regions
+AdultBrainFiles<- c("BI.Brain_Angular_Gyrus.H3K4me3.112.narrowPeak.gz",
+                    "BI.Brain_Anterior_Caudate.H3K4me3.112.narrowPeak.gz",
+                    "BI.Brain_Cingulate_Gyrus.H3K4me3.112.narrowPeak.gz",
+                    "BI.Brain_Hippocampus_Middle.H3K4me3.112.narrowPeak.gz",
+                     "BI.Brain_Inferior_Temporal_Lobe.H3K4me3.112.narrowPeak.gz",
+                     "BI.Brain_Mid_Frontal_Lobe.H3K4me3.112.narrowPeak.gz" ,
+                    "BI.Brain_Substantia_Nigra.H3K4me3.112.narrowPeak.gz"  )
+AdultBrain<- lapply(AdultBrainFiles, function(x){subset(qhs, title==x)[[1]]})
+
+#Add all Adult brain granges objects together
+AdultBrain_df<-lapply(AdultBrain, as.data.frame)
+AdultBrain_Merged<-do.call("rbind", AdultBrain_df)
+AdultBrain_gr<- makeGRangesFromDataFrame(AdultBrain_Merged, keep.extra.columns = TRUE)
+
+#import peak data for fetal brain
+FetalBrain_gr <- subset(qhs, title =="BI.Fetal_Brain.H3K4me3.UW_H-22510.narrowPeak.gz")[[1]]
+
+#search for and import peak data for adult liver
+qhs<- query(ah, "H3K4me3")
+qhs<-query(qhs, "Liver")
+qhs<-query(qhs, "narrowPeak")
+AdultLiver_gr<-subset(qhs, title=="BI.Adult_Liver.H3K4me3.3.narrowPeak.gz")[[1]]
+```
+
+#Import promoter regions from RefSeq. Used to map ChipSeq data to gene IDs
+```{r}
+qhs <- query(ah, "RefSeq")
+refseq <- qhs[qhs$genome == "hg19" & qhs$title == "RefSeq Genes"]
+refseq <- refseq[[1]]
+promoters <- promoters(refseq)
+```
+
+#Using promoter regions, identify in which genes peaks fall
+```{r}
+#Get granges object of overlap between promoters and peaks
+AdultBrain_granges_PromoterPeak<-intersect(AdultBrain_gr, promoters, ignore.strand = TRUE)
+FetalBrain_granges_PromoterPeak<-intersect(FetalBrain_gr, promoters, ignore.strand = TRUE)
+AdultLiver_granges_PromoterPeak<-intersect(AdultLiver_gr, promoters, ignore.strand = TRUE)
+
+#Look up gene IDs for granges object
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+
+AdultBrain_Granges_GeneID<-subsetByOverlaps(genes(txdb), AdultBrain_granges_PromoterPeak, ignore.strand = TRUE)
+AdultBrain_Granges_GeneID$gene_id<- unlist(unname(lookUp(AdultBrain_Granges_GeneID$gene_id, 'org.Hs.eg', 'SYMBOL')))
+
+FetalBrain_Granges_GeneID<-subsetByOverlaps(genes(txdb), FetalBrain_granges_PromoterPeak, ignore.strand = TRUE)
+FetalBrain_Granges_GeneID$gene_id<- unlist(unname(lookUp(FetalBrain_Granges_GeneID$gene_id, 'org.Hs.eg', 'SYMBOL')))
+
+AdultLiver_Granges_GeneID<-subsetByOverlaps(genes(txdb), AdultLiver_granges_PromoterPeak, ignore.strand = TRUE)
+AdultLiver_Granges_GeneID$gene_id<- unlist(unname(lookUp(AdultLiver_Granges_GeneID$gene_id, 'org.Hs.eg', 'SYMBOL')))
+
+#Which promoters are methylated in ONLY fetal or ONLY adult?
+AdultGenes<- unique(AdultBrain_Granges_GeneID$gene_id) #16,596
+FetalGenes<-unique(FetalBrain_Granges_GeneID$gene_id) #8070
+OnlyAdult<- AdultGenes[!(AdultGenes %in% FetalGenes)] #8,541 unique to Adult
+OnlyFetal<- FetalGenes[!(FetalGenes %in% AdultGenes)] #15 unique to Fetal
+
+```
+
+
+#Read in differentially expressed genes from previous assignment
+```{r}
+#Import differentially expressed genes between adult and fetal brain
+readwd<- "C:/Users/Jenna/Documents/CourseraGenomicDataScience/Capstone/"
+DEGs<-na.omit(read.csv(paste(readwd, "DESeqResults_041620.csv", sep=""))) #19,059 DEGs
+```
+
+Filter DEGs- only looking at DEGs with abs(log2FC)>1 AND padj<0.01:
+```{r}
+DEGs<- DEGs[abs(DEGs$log2FoldChange)>1,] #9,626 DEGs
+DEGs<-DEGs[DEGs$padj<0.01,] #6,216 DEGs
+```
+
+Get DEGs that are increased in Fetal and DEGs increased in Adult samples- i.e., genes that may be affected by H3K4me3 modification
+```{r}
+Fetal_IncreasedDEG<-DEGs[DEGs$log2FoldChange>0,] #2,730 DEGs
+Adult_IncreasedDEG<-DEGs[DEGs$log2FoldChange<0,] #3,486 DEGs
+```
+
+
+
+#Are there changes in H3K4me3 between fetal and adult brain over promoters for genes differentially expressed between fetal and adult brain?
+```{r}
+#Number of genes that had H3K4me3 modification in their promoters in Adult brain samples that were also found to be significantly increased in differential expression analysis:
+AdultPromoter_AdultDEG<- Adult_IncreasedDEG[Adult_IncreasedDEG$X %in% OnlyAdult,]
+nrow(AdultPromoter_AdultDEG)/length(OnlyAdult) #23% of genes with H3K4me3 modification ONLY in adult brain (not fetal) are DE in Adult samples
+head(AdultPromoter_AdultDEG)
+```
+The above shows the top DE genes that are increased in Adult brain compared to fetal that were found to have their promoter near H3K4me3 methylation in Adult brain but not in Fetal brain samples.
+
+```{r}
+#Number of genes that had H3K4me3 modification in their promoters in Fetal brain samples that were also found to be significantly increased in differential expression analysis:
+FetalPromoter_FetalDEG<- Fetal_IncreasedDEG[Fetal_IncreasedDEG$X %in% OnlyFetal,]
+nrow(FetalPromoter_FetalDEG)/length(OnlyFetal) #20% of genes with H3K4me3 modification ONLY in fetal brain (not adult) are DE in Fetal samples
+head(FetalPromoter_FetalDEG)
+```
+The above shows the all DE genes that are increased in Fetal brain compared to Adult that were found to have their promoter near H3K4me3 methylation in Fetal brain but not in Adult brain samples.
+
+
+#Are promoters of genes differentially expressed between adult and fetal brain marked by H3K4me3 in liver?
+This serves as the control question. We would expect that genes with modified promoters in liver tissue would not have increased expression in Adult Brain samples.
+```{r}
+#Get promoters of genes that were marked by H3K4me3 in Liver only, not in Adult Brain
+LiverGenes<- unique(AdultLiver_Granges_GeneID$gene_id)
+OnlyLiver<- LiverGenes[!(LiverGenes %in% AdultGenes)] #1185 genes with modification only in Liver, not in Adult Brain
+
+#Number of genes that had H3K4me3 modification in their promoters in only liver samples that are also signficantly increased in Adult brain
+LiverPromoter_AdultDEG<- Adult_IncreasedDEG[Adult_IncreasedDEG$X %in% OnlyLiver,]
+nrow(LiverPromoter_AdultDEG)/length(OnlyLiver) #9% of genes with H3Kme3 modifcation ONLY in Liver (not in Brain) are DE in Adult Brain samples
+head(LiverPromoter_AdultDEG)
+```
+
+Overall: of the 8,451 genes with their promoter near H3K4me3 only in Adult brain tissues, 1,995 (23%) were also significantly increased in Adult brain samples in differential expression. Of the 15 genes with their promoter near H3K4me3 only in Fetal brain, 3 (20%) were also significantly increased in Fetal brain samples during differential expression.
+
+Surprisingly, I found that of the 433 genes with their promoter near H3K4me3 only in Adult Liver tissues, 41 (9%) were also significantly increased in Adult brain samples during differential expression. While this value is considerably lower than in Adult Brain tissues (23%), we might expect for there to be closer to 0 genes found for Adult Liver samples.
+
+Interestingly, the raw counts for the DEGs found in the Adult Brain H3k4me3 list appear to be considerably higher (and perhaps then of higher confidence) than those found in the Adult Liver H3k4me3 list:
+```{r}
+df<- list(cbind(AdultPromoter_AdultDEG, Class="AdultBrain"), cbind(LiverPromoter_AdultDEG, Class="AdultLiver"))
+df_merge<- rbind(df[[1]], df[[2]])
+
+p<-ggplot(df_merge, aes(x=Class, y=log10(baseMean)))+
+        geom_boxplot()
+p
+```
+
+This suggests that the DEGs found with their promoter modified in Brain tissue were of higher confidence than those found with their promoter modified in Liver tissue. 
+
+#Summary
+Overall, as we might expect, a large proportion (~22%) of DEGs with their promoters near an H3k4me3 site in Fetal and Adult brain samples were also found to be significantly increased in Fetal and Adult samples, respectively. Surprisingly, there were several DEGs that were found with their promoters near an H3k4me3 site in Adult Liver samples. However, a smaller proportion (9%) of promoters in Liver samples were found significantly increased in Adult Brain. These DEGs also had overall lower counts than the DEGs found near H3k4me3 sites in Brain samples. 

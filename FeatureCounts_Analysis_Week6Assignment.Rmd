@@ -4,8 +4,9 @@ output: html_notebook
 ---
 
 #Coursera Capstone Project: Analysis of 3 Fetal and 3 Adult RNASeq samples
+Initial processing and exploration of counts data
 
-#Alignment and featureCounts performed in Galaxy
+
 
 Libraries
 ```{r}
@@ -16,7 +17,19 @@ suppressPackageStartupMessages(library(DESeq2))
 ```
 
 
-#Read in feature counts data
+#Alignment (STAR) and featureCounts performed in Galaxy - described in detail in CourseraCapstone_FetalAdultBrain_RNASeqAnalysis.Rmd
+
+Six samples in total analyzed here (SRA Project ID: PRJNA245228):
+        - 3 from Adult brain tissue:
+                SRS686967
+                SRS686962
+                SRS686964
+        - 3 from Fetal brain tissue
+                SRS686965
+                SRS686966
+                SRS686969
+
+#Read in feature counts data and merge together
 ```{r}
 readwd<- "C:/Users/Jenna/Documents/CourseraGenomicDataScience/Capstone/RawCounts/"
 
@@ -41,30 +54,24 @@ counts<- Counts_Merged[,-1]
 
 ```
 
+#Write merged results to csv
 ```{r}
 write.csv(Counts_Merged, paste(readwd, "AllCounts.csv", sep=""))
 
 write.table(Counts_Merged, paste(readwd, "AllCounts.txt", sep=""), sep="\t")
 ```
 
-PCA
+#PCA
 ```{r}
-counts<-Classmate[,-1]
-
 meta<-data.frame(Samples=colnames(counts), Group= c(rep("Fetal", 3), rep("Adult", 3)))
 dds<- DESeqDataSetFromMatrix(counts, colData=meta, design=~Group)
 dds_transform<-rlog(dds)
 
-#MyPCA<-plotPCA(dds_transform, intgroup="Group")
 plotPCA(dds_transform, intgroup="Group")
 ```
 
 
 ```{r}
-Classmate<- read.csv(paste(readwd, "Peer2_counts.txt", sep=""), sep="\t")
-Classmate$Geneid<- rownames(Classmate)
-Counts_Merged<-Classmate
-
 #Plot total counts for every sample with the total number of reads mapped for that sample
 TotalCounts<- data.frame(Sample=colnames(Counts_Merged[,2:7]), TotalCounts=colSums(Counts_Merged[,2:7]),
                          Group=c(rep("Fetal", 3), rep("Adult", 3)))

@@ -5,16 +5,32 @@ output:
   html_notebook: default
 ---
 
+#Coursera Capstone Course
+#Week 8: Differential Expression
+
 Import libraries
 ```{r}
 suppressPackageStartupMessages(library(DESeq2))
 suppressPackageStartupMessages(library(pheatmap))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(ggrepel))
-library(org.Hs.eg.db)
-library(annotate)
+suppressPackageStartupMessages(library(org.Hs.eg.db))
+suppressPackageStartupMessages(library(annotate))
 ```
 
+#Alignment (STAR) and featureCounts performed in Galaxy - described in detail in CourseraCapstone_FetalAdultBrain_RNASeqAnalysis.Rmd
+
+#Preliminary analysis of counts performed in FeatureCounts_Analysis_Week6Assignment.Rmd and ExploratoryAnalysis_Week7.Rmd
+
+Six samples in total analyzed here (SRA Project ID: PRJNA245228):
+        - 3 from Adult brain tissue:
+                SRS686967
+                SRS686962
+                SRS686964
+        - 3 from Fetal brain tissue
+                SRS686965
+                SRS686966
+                SRS686969 
 
 #Import count matrices for all 6 samples
 ```{r}
@@ -57,7 +73,6 @@ nrow(resOrdered[resOrdered$padj<0.01,]) #10,910
 ```
 
 #Export results
-
 ```{r}
 write.csv(resOrdered, paste(readwd, "DESeqResults_041620.csv", sep=""))
 ```
@@ -68,13 +83,14 @@ write.csv(resOrdered, paste(readwd, "DESeqResults_041620.csv", sep=""))
 rld<-rlog(dds)
 
 #Get top genes, normalized counts of those top genes
-topgenes<- rownames(resOrdered[1:50,])
+topgenes<- rownames(resOrdered[1:25,])
 mat<-assay(rld)[topgenes,]
 mat<-mat-rowMeans(mat)
 
 #plot heatmap
 pheatmap(mat, annotation_col = pheno[,c(1,9)])
 ```
+Samples cluster tightly by age (Fetal vs Adult)
 
 #Make a volcano plot of DE genes
 ```{r}

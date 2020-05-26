@@ -152,3 +152,8 @@ plotPCA(transform, intgroup=c("Q30"))
 
 
 Samples cluster by Age (Fetal vs Adult) and slightly by percent mapping rate, but no obvious clustering observed for age or Q30
+
+```{r}
+sessionInfo()
+```
+

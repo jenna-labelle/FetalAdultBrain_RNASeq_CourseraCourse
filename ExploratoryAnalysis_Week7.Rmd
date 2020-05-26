@@ -1,10 +1,13 @@
 ---
-title: "R Notebook"
+title: "Coursera Capstone Project: Exploratory analysis of raw gene counts"
 output:
   pdf_document: default
   word_document: default
   html_notebook: default
 ---
+
+#Coursera Capstone Course
+#Week 7: Exploratory analysis
 
 Install Libraries
 ```{r}
@@ -13,41 +16,7 @@ suppressPackageStartupMessages(library(reshape2))
 suppressPackageStartupMessages(library(DESeq2))
 ```
 
-
-#Coursera Capstone Course
-#Week 7: Exploratory analysis
-
-#Import the data
-
-Import count matrices for all 6 samples
-```{r}
-readwd<- "C:/Users/Jenna/Documents/CourseraGenomicDataScience/Capstone/"
-counts<- read.table(paste(readwd, "RawCounts/AllCounts.txt", sep=""), sep="\t", header=TRUE, row.names = "Geneid")
-
-pheno<- read.csv(paste(readwd, "PhenotypeData.csv", sep=""), header=TRUE, row.names="SampleID")
-pheno$Group<- c(rep("Fetal", 3), rep("Adult", 3))
-```
-
-#normalize counts by converting to CPM, filter
-```{r}
-cpm<- counts/rep(colSums(counts), each=nrow(counts))*1000000
-
-
-#Filter out genes without at least 1 sample with CPM> 0.2
-#CPM > .2 corresponds to a threshold of about ~15 counts for this sequencing depth
-sum(rowSums(cpm>0.2)>=1)#19,218 genes (out of 25,702) have at least 0.5 CPM in 1 sample
-cpm_thresh<- cpm[rowSums(cpm>0.2)>=1,]
-
-```
-
-#Plot boxplots of data transformed in 5 ways:
-
-1) CPM
-2) Log2
-3) Log10
-4) Variance stabilizing transformation
-5) Rlog
-
+Functions
 ```{r}
 #Function for plotting nice looking bar plots in ggplot2
 PlotBoxplot<- function(counts, ylab){
@@ -64,22 +33,68 @@ PlotBoxplot<- function(counts, ylab){
               axis.title.y= element_text(size=14, color="black", face="bold"))
 }
 
-#Plot all counts on boxplot
-PlotBoxplot(counts, "Counts")
 ```
 
 
+#Alignment (STAR) and featureCounts performed in Galaxy - described in detail in CourseraCapstone_FetalAdultBrain_RNASeqAnalysis.Rmd
+
+Six samples in total analyzed here (SRA Project ID: PRJNA245228):
+        - 3 from Adult brain tissue:
+                SRS686967
+                SRS686962
+                SRS686964
+        - 3 from Fetal brain tissue
+                SRS686965
+                SRS686966
+                SRS686969 
+
+
+#Import the data
+
+Import count matrices for all 6 samples
+```{r}
+readwd<- "C:/Users/Jenna/Documents/CourseraGenomicDataScience/Capstone/"
+counts<- read.table(paste(readwd, "RawCounts/AllCounts.txt", sep=""), sep="\t", header=TRUE, row.names = "Geneid")
+
+pheno<- read.csv(paste(readwd, "PhenotypeData.csv", sep=""), header=TRUE, row.names="SampleID")
+pheno$Group<- c(rep("Fetal", 3), rep("Adult", 3))
+```
+
+#normalize counts by converting to CPM, filter out lowly expressed genes
+```{r}
+#Convert to CPM
+cpm<- counts/rep(colSums(counts), each=nrow(counts))*1000000
+
+#Filter out genes without at least 1 sample with CPM> 0.2
+#CPM > .2 corresponds to a threshold of about ~15 counts for this sequencing depth
+sum(rowSums(cpm>0.2)>=1)#19,218 genes (out of 25,702) have at least 0.2 CPM in 1 sample
+cpm_thresh<- cpm[rowSums(cpm>0.2)>=1,]
+
+```
+
+#Plot boxplots of data transformed in 5 ways:
+
+1) CPM
+2) Log2
+3) Log10
+4) Variance stabilizing transformation
+5) Rlog
+
+```{r}
+#Plot all counts on boxplot
+PlotBoxplot(counts, "Counts")
+```
 
 
 ```{r}
 #Plot cpm on boxplot
 PlotBoxplot(cpm_thresh, "CPM")
 ```
+
 ```{r}
 #Log2 transform cpm, then boxplot
 cpm_log2<- log2(cpm_thresh +1)
 PlotBoxplot(cpm_log2, "Log2 CPM")
-
 ```
 
 ```{r}
@@ -101,7 +116,9 @@ RLog<- rlog(as.matrix(counts))
 PlotBoxplot(as.data.frame(RLog), "Rlog transformation")
 ```
 
-#Plot PCA
+Log transforming data improves linearity, but rlog seems to be the best fit for the data. This transformation will be used for the remainder of this analysis.
+
+#Plot PCA- based on several phenotype variables
 ```{r}
 #Reorder pheno data so it matches counts matrix
 pheno<- pheno[order(pheno$Run),]
@@ -115,6 +132,7 @@ transform<- rlog(dds)
 #plot PCA- based on fetal/adult
 plotPCA(transform, intgroup="Group")
 ```
+
 ```{r}
 #plot PCA- based on sex
 plotPCA(transform, intgroup="Sex")
@@ -131,3 +149,4 @@ plotPCA(transform, intgroup=c("Q30"))
 ```
 
 
+Samples cluster by Age (Fetal vs Adult) and slightly by percent mapping rate, but no obvious clustering observed for age or Q30

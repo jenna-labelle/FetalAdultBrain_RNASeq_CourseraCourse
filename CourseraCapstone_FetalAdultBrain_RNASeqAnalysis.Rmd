@@ -8,6 +8,8 @@ output:
 
 #Coursera Capstone Project: Analysis of 3 Fetal and 3 Adult RNASeq samples
 
+This file contains the complete (abridged) analysis.
+
 This analysis is split into 6 main parts:
 
 1) Import of raw fastq data into Galaxy from SRA
@@ -39,10 +41,26 @@ suppressPackageStartupMessages(library(TxDb.Hsapiens.UCSC.hg19.knownGene))
 
 
 #Step 1: Import of fastqs into Galaxy
+Using the “EBI SRA” tool in Galaxy, paired-end fastqs were imported for 6 runs (corresponding to 3 Fetal and 3 Adult samples) from experiment SRX683795:
+        - 3 from Adult brain tissue:
+                SRS686967
+                SRS686962
+                SRS686964
+        - 3 from Fetal brain tissue
+                SRS686965
+                SRS686966
+                SRS686969 
 
 #Step 2: Alignment of fastqs in Galaxy using STAR
 
+Paired fastqs were aligned in Galaxy using RNA STAR Gapped-read mapper for RNA-seq data (Galaxy Version 2.6.0b-1). The built-in index for Human (Homo sapiens) (b37): hg19 was used as the reference genome. Length of the genomic sequence around annotated junctions was set at 99. Defaults were used for all other settings.
+
+Mapped.bam files were QC’d using FastQC Read Quality reports (Galaxy Version 0.72+galaxy1). No additional filtering or trimming was performed post-QC.
+
 #Step 3: Count matrix generation using featureCounts in Galaxy
+
+Mapped.bam files were quantified in Galaxy using featureCounts (Galaxy Version 1.6.4+galaxy1). Strand information was set as Unstranded. The built in hg19 genome was used for quantifying read counts. Output format was set as Gene-ID “\t” read-count (MultiQC/DESeq2/edger/limma-voom compatible). Gene-length file was not created. Job resource parameters were left at defaults. The tabular counts matrix for each sample (6 total) was used as input into RStudio for the following steps.
+
 
 #Step 4: Exploratory analysis
 
@@ -218,5 +236,8 @@ Overall: of the 8,451 genes with their promoter near H3K4me3 only in Adult brain
 
 Surprisingly, of the 433 genes with their promoter near H3K4me3 only in Adult Liver tissues, 41 (9%) were also significantly increased in Adult brain samples during differential expression. While this value is considerably lower than in Adult Brain tissues (23%), we might expect for there to be closer to 0 genes found for Adult Liver samples.
 
+```{r}
+sessionInfo()
+```
  
 

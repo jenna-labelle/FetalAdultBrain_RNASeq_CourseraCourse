@@ -38,6 +38,8 @@ PlotBoxplot<- function(counts, ylab){
 
 #Alignment (STAR) and featureCounts performed in Galaxy - described in detail in CourseraCapstone_FetalAdultBrain_RNASeqAnalysis.Rmd
 
+#Preliminary analysis of counts performed in FeatureCounts_Analysis_Week6Assignment.Rmd
+
 Six samples in total analyzed here (SRA Project ID: PRJNA245228):
         - 3 from Adult brain tissue:
                 SRS686967

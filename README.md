@@ -6,7 +6,7 @@ Publically available RNASeq data obtained from BioProject PRJNA245228 and analyz
 
 ## This analysis is split into 6 main parts:
 
-**1)	Import of raw fastq data into Galaxy from SRA
+**1)	Import of raw fastq data into Galaxy from SRA**
 **2)	Alignment of fastq files in Galaxy using STAR**
 **3)	Count matrix generation using featureCounts in Galaxy**
 **4)	Exploratory analysis of counts using PCA**

@@ -3,6 +3,8 @@
 
 Publically available RNASeq data obtained from BioProject PRJNA245228 and analyzed in Galaxy (alignment step) and RStudio
 
+**Goal of this project:** Identify differences in gene expression in adult vs fetal brain tissue. Additionally, correlate differentially expressed genes identified with methylation markers.
+
 
 ## This analysis is split into 6 main parts:
 

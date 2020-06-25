@@ -19,6 +19,8 @@ Publically available RNASeq data obtained from BioProject PRJNA245228 and analyz
 **6)	Comparison of DEGs to H3K4me3 methylation near promoters**
 
 
+
+
 **The first 3 steps were performed using Galaxy. Briefly:**
 
 1. Fastqs imported into Galaxy using the “EBI SRA” tool in Galaxy. Paired-end fastqs were imported for 6 runs (corresponding to 3 Fetal and 3 Adult samples) from experiment SRX683795: SRS686965 / SRS686966 / SRS686969 / SRS686967 / SRS686962 / SRS686964

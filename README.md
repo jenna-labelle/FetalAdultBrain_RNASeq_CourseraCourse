@@ -19,9 +19,7 @@ Publically available RNASeq data obtained from BioProject PRJNA245228 and analyz
 **6)	Comparison of DEGs to H3K4me3 methylation near promoters**
 
 
-
-
-**The first 3 steps were performed using Galaxy. Briefly:**
+***The first 3 steps were performed using Galaxy. Briefly:***
 
 1. Fastqs imported into Galaxy using the “EBI SRA” tool in Galaxy. Paired-end fastqs were imported for 6 runs (corresponding to 3 Fetal and 3 Adult samples) from experiment SRX683795: SRS686965 / SRS686966 / SRS686969 / SRS686967 / SRS686962 / SRS686964
 
@@ -30,7 +28,7 @@ Publically available RNASeq data obtained from BioProject PRJNA245228 and analyz
 3. Mapped.bam files were quantified in Galaxy using featureCounts (Galaxy Version 1.6.4+galaxy1). Strand information was set as Unstranded. The built in hg19 genome was used for quantifying read counts. Output format was set as Gene-ID “\t” read-count (MultiQC/DESeq2/edger/limma-voom compatible). Gene-length file was not created. Job resource parameters were left at defaults. The tabular counts matrix for each sample (6 total) was used as input into RStudio for steps 4-6
 
 
-**Steps 4-6 were performed in R. The code used for performing this analysis is included in this repository.**
+***Steps 4-6 were performed in R. The code used for performing this analysis is included in this repository.***
 
 
 4. Exploratory analysis: PCA plotted for several phenotype characteristics, including average Q30, age, sex, and race to determine if any batch effects need to be controlled for in DE.
